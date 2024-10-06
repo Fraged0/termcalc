@@ -1,10 +1,51 @@
 #include <iostream>
+#include <fstream>
 #include <stack>
 #include <string>
 #include <cctype>
 #include <cmath>
 #include <map>
 #include <csignal>
+
+bool ansicolors;
+std::string history;
+
+bool conv(std::string a) {
+    if (a == "true") {
+        return true;
+    }
+    else if (a == "false") {
+        return false;
+    }
+    else {
+        return false;
+    }
+}
+
+std::map<std::string, std::string> readConfig(const std::string& filename) {
+    std::map<std::string, std::string> config;
+    std::ifstream configFile(filename);
+    std::string line;
+
+    if (configFile.is_open()) {
+        while (getline(configFile, line)) {
+            if (line.empty() || line[0] == '#') {
+                continue;  // Skip comments and empty lines
+            }
+
+            size_t delimiterPos = line.find('=');
+            std::string key = line.substr(0, delimiterPos);
+            std::string value = line.substr(delimiterPos + 1);
+
+            config[key] = value;
+        }
+        configFile.close();
+    } else {
+        std::cerr << "unable to open config file" << std::endl;
+    }
+
+    return config;
+}
 
 int precedence(char op) {
     if (op == '+' || op == '-') return 1;
@@ -91,14 +132,41 @@ double evaluate(const std::string& expression) {
 }
 
 void handle_segfault(int sig) {
-    std::cout << "\033[1;31m> E - segmentation fault <\033[0m" << std::endl;
+    if (ansicolors == true) {
+        std::cout << "\033[1;31m> E - segmentation fault <\033[0m" << std::endl;
+    }
+    else {
+        std::cout << "> E - segmentation fault <" << std::endl;
+    }
     exit(1);
 }
 
 int main() {
     signal(SIGSEGV, handle_segfault);
+    
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+    std::string date = std::to_string(ltm->tm_mday) + "." + 
+                   std::to_string(ltm->tm_mon + 1) + "." + 
+                   std::to_string(1900 + ltm->tm_year);
 
-    std::cout << "\033[37mwelcome to\033[1;36m termcalc\033[0;0m!" << std::endl << std::endl;
+    //std::cout << "reading config.ini" << std::endl;
+    
+    auto config = readConfig("config.ini");
+    ansicolors = conv(config["ansicolors"]);
+    
+    std::ifstream in;
+    in.open("history.txt");
+    std::string line;
+    in.close();
+    
+    bool noWriteDate = false;
+    if (ansicolors == true) {
+        std::cout << "welcome to\033[1;36m termcalc\033[0;0m!" << std::endl << std::endl;
+    }
+    else {
+        std::cout << "welcome to termcalc!" << std::endl << std::endl;
+    }
     
     std::string expression;
     do {
@@ -107,10 +175,27 @@ int main() {
             getline(std::cin, expression);
             if (expression != "") {
                 double result = evaluate(expression);
-                std::cout << "\033[1;32m> " << result << " <\033[0;0m" << std::endl;
+                if (ansicolors == true) {
+                    std::cout << "\033[1;32m> " << result << " <\033[0;0m" << std::endl;
+                }
+                else {
+                    std::cout << "> " << result << " <" << std::endl;
+                }
+                std::ofstream out;
+                out.open("history.txt", std::ios::app);
+                if (noWriteDate == false) {
+                    out << date << std::endl;
+                }
+                noWriteDate = true;
+                out << "ex: " + expression + "    re: " + std::to_string(result) + "\n";
+                out.close();
             }
         } catch (const std::exception& e) {
-            std::cout << "\033[1;31m> E - " << e.what() << " <\033[0m" << std::endl;
+            if (ansicolors == true) {
+                std::cout << "\033[1;31m> E - " << e.what() << " <\033[0m" << std::endl;
+            } else {
+                std::cout << "> E - " << e.what() << " <" << std::endl;
+            }
         }
     } while (true);
     return 0;
